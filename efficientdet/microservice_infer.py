@@ -80,6 +80,7 @@ def main(_):
     if kwargs.get('max_output_size', None):
         model_config.nms_configs.max_output_size = kwargs['max_output_size']
 
+    client = microserviceclient.MicroserviceClient("efficientdetservice_" + FLAGS.kinect4a_id)
     driver = inference.ServingDriver(
         FLAGS.model_name,
         FLAGS.ckpt_path,
@@ -89,19 +90,22 @@ def main(_):
     driver.load(FLAGS.saved_model_dir)
 
     def on_binaryNotification_handler(methodName, payload):
+        nonlocal driver
+        nonlocal client
         if methodName == "doInferencePlease":
             cv2.imdecode(payload)
             raw_frames = [np.array(frame)]
             detections_bs = driver.serve_images(raw_frames)
             new_frame = driver.visualize(raw_frames[0], detections_bs[0], **kwargs)
+            client.notify("inferenceResult", detections_bs)
 
-    client = microserviceclient.MicroserviceClient("efficientdetservice_" + kinect4a_id)
     client.on_binaryNotification = on_binaryNotification_handler
     client.start()
 
     while True:
         time.sleep(0.10)
 
+    client.stop()
 
 if __name__ == '__main__':
     logging.set_verbosity(logging.WARNING)

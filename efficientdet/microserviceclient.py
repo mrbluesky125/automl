@@ -66,8 +66,7 @@ class MicroserviceClient:
     def _on_message_handler(self, client, userdata, msg):
         topic = msg.topic
         payload = msg.payload
-        messageObject = json.loads(payload)
-
+        
         regexpResult = re.compile('microservice/(.+)/json/result/(.+)/(.+)')
         regexpBinaryResult = re.compile('microservice/(.+)/binary/result/(.+)/(.+)')
         regexpNotification = re.compile('microservice/(.+)/json/notification/(.+)')
@@ -78,6 +77,7 @@ class MicroserviceClient:
         matchBinaryNotification = regexpBinaryNotification.search(topic)
         
         if matchResult:
+            messageObject = json.loads(payload)
             serviceName = matchResult.group(1)
             id = matchResult.group(2)
             clientId = matchResult.group(3)
@@ -87,28 +87,31 @@ class MicroserviceClient:
             print("Result " + id + " from " + serviceName)
             self._on_text_message_handler(id, messageObject.get("result", None))
         elif matchBinaryResult:
-            serviceName = matchResult.group(1)
-            id = matchResult.group(2)
-            clientId = matchResult.group(3)
+            serviceName = matchBinaryResult.group(1)
+            id = matchBinaryResult.group(2)
+            clientId = matchBinaryResult.group(3)
             if clientId != self.clientId():
                 return
             
-            print("Result (Binary)" + id + " from " + serviceName)
+            print("Result (Binary) " + id + " from " + serviceName)
             self._on_binary_message_handler(id, payload)
         elif matchNotification:
+            messageObject = json.loads(payload)
             serviceName = matchNotification.group(1)
             methodName = matchNotification.group(2)
-
+            
             if methodName == 'heartbeat':
                 self._on_heartbeat_handler(methodName, messageObject.get('params', None))
                 return
-            
+
+            print("Notification " + methodName + " from " + serviceName)            
             if self.on_notification is not None:
                 self.on_notification(methodName, messageObject.get('params', None))
         elif matchBinaryNotification:
-            serviceName = matchNotification.group(1)
-            methodName = matchNotification.group(2)
+            serviceName = matchBinaryNotification.group(1)
+            methodName = matchBinaryNotification.group(2)
 
+            print("Notification (Binary) " + methodName + " from " + serviceName)            
             if self.on_binaryNotification is not None:
                 self.on_binaryNotification(methodName, payload)
 
