@@ -35,13 +35,13 @@ flags.DEFINE_string('tensorrt', None, 'TensorRT mode: {None, FP32, FP16, INT8}')
 flags.DEFINE_bool('delete_logdir', True, 'Whether to delete logdir.')
 flags.DEFINE_bool('use_xla', False, 'Run with xla optimization.')
 flags.DEFINE_integer('batch_size', 1, 'Batch size for inference.')
-
+flags.DEFINE_string('ckpt_path', None, 'checkpoint dir used for eval.')
 flags.DEFINE_string(
     'hparams', '', 'Comma separated k=v pairs of hyperparameters or a module'
                    ' containing attributes to use as hyperparameters.')
 
 # For visualization.
-flags.DEFINE_integer('line_thickness', None, 'Line thickness for box.')
+flags.DEFINE_integer('line_thickness', 1, 'Line thickness for box.')
 flags.DEFINE_integer('max_boxes_to_draw', 100, 'Max number of boxes to draw.')
 flags.DEFINE_float('min_score_thresh', 0.4, 'Score threshold to show box.')
 flags.DEFINE_string('nms_method', 'hard', 'nms method, hard or gaussian.')
@@ -67,18 +67,13 @@ FLAGS = flags.FLAGS
 
 def main(_):
     #do magic with model_config
-    model_config = hparams_config.get_detection_config(model_name)
+    model_config = hparams_config.get_detection_config(FLAGS.model_name)
     model_config.override(FLAGS.hparams)  # Add custom overrides
     model_config.is_training_bn = False
     model_config.image_size = utils.parse_image_size(model_config.image_size)
-
-    # A hack to make flag consistent with nms configs.
-    if kwargs.get('score_thresh', None):
-        model_config.nms_configs.score_thresh = kwargs['score_thresh']
-    if kwargs.get('nms_method', None):
-        model_config.nms_configs.method = kwargs['nms_method']
-    if kwargs.get('max_output_size', None):
-        model_config.nms_configs.max_output_size = kwargs['max_output_size']
+    model_config.nms_configs.score_thresh = FLAGS.min_score_thresh
+    model_config.nms_configs.method = FLAGS.nms_method
+    model_config.nms_configs.max_output_size = FLAGS.max_boxes_to_draw
 
     client = microserviceclient.MicroserviceClient("efficientdetservice_" + FLAGS.kinect4a_id)
     driver = inference.ServingDriver(
@@ -93,11 +88,13 @@ def main(_):
         nonlocal driver
         nonlocal client
         if methodName == "doInferencePlease":
-            cv2.imdecode(payload)
+            frame = cv2.imdecode(np.asarray(bytearray(payload), dtype=np.uint8), cv2.IMREAD_COLOR)
             raw_frames = [np.array(frame)]
             detections_bs = driver.serve_images(raw_frames)
-            new_frame = driver.visualize(raw_frames[0], detections_bs[0], **kwargs)
-            client.notify("inferenceResult", detections_bs)
+            new_frame = driver.visualize(raw_frames[0], detections_bs[0], min_score_thresh=FLAGS.min_score_thresh, max_boxes_to_draw=FLAGS.max_boxes_to_draw, line_thickness=FLAGS.line_thickness )
+            client.notify("inferenceResult", detections_bs.tolist())
+            res, boxedFrame = cv2.imencode('.jpg', new_frame)
+            client.binaryNotify("inferenceResult", boxedFrame.tobytes())
 
     client.on_binaryNotification = on_binaryNotification_handler
     client.start()
@@ -108,6 +105,8 @@ def main(_):
     client.stop()
 
 if __name__ == '__main__':
+    os.environ["BROKER_IP"] = "141.19.87.230"
+    
     logging.set_verbosity(logging.WARNING)
     tf.enable_v2_tensorshape()
     tf.disable_eager_execution()
