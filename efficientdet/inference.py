@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-r"""Inference related utilities."""
+"""Inference related utilities."""
 import copy
 import functools
 import os
