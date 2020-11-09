@@ -1,13 +1,3 @@
-# For Webcam mode run in terminal:
-```
-* wget https://storage.googleapis.com/cloud-tpu-checkpoints/efficientdet/coco/efficientdet-d0.tar.gz
-* wget https://storage.googleapis.com/cloud-tpu-checkpoints/efficientdet/coco/efficientdet-d4.tar.gz
-* tar zxf efficientdet-d0.tar.gz
-* tar zxf efficientdet-d4.tar.gz
-* python model_inspect.py --runmode=saved_model --model_name=efficientdet-d4 --ckpt_path=efficientdet-d4 --hparams="mixed_precision=true" --saved_model_dir='savedmodel'
-* python model_inspect.py --runmode=saved_model_webcam --webcam_idx=0 --model_name=efficientdet-d4 --saved_model_dir='savedmodel' --min_score_thresh=0.35  --max_boxes_to_draw=200 --hparams="mixed_precision=true"
-```
-
 # EfficientDet
 
 [1] Mingxing Tan, Ruoming Pang, Quoc V. Le. EfficientDet: Scalable and Efficient Object Detection. CVPR 2020.
@@ -96,9 +86,9 @@ In addition, the following table includes a list of models trained with fixed 64
 Run the following command line to export models:
 
     !rm  -rf savedmodeldir
-    !python model_inspect.py --runmode=saved_model --model_name=efficientdet-d0 \
+    !python inspector.py --mode=saved_model --model_name=efficientdet-d0 \
       --ckpt_path=efficientdet-d0 --saved_model_dir=savedmodeldir \
-      --tensorrt=FP32  --tflite_path=efficientdet-d0.tflite \
+      --tensorrt=FP32  --tflite=FP32 \
       --hparams=voc_config.yaml
 
 Then you will get:
@@ -121,7 +111,7 @@ There are two types of latency: network latency and end-to-end latency.
 (1) To measure the network latency (from the fist conv to the last class/box
 prediction output), use the following command:
 
-    !python model_inspect.py --runmode=bm --model_name=efficientdet-d0
+    !python inspector.py --mode=benchmark --only_network --model_name=efficientdet-d0
 
 add --hparams="mixed_precision=True" if running on V100.
 
@@ -132,15 +122,8 @@ has 134 FPS (frame per second) for batch size 1, and 238 FPS for batch size 8.
 new image, including: image preprocessing, network, postprocessing and NMS),
 use the following command:
 
-    !rm  -rf /tmp/benchmark/
-    !python model_inspect.py --runmode=saved_model --model_name=efficientdet-d0 \
-      --ckpt_path=efficientdet-d0 --saved_model_dir=/tmp/benchmark/ \
-      --hparams=mixed_precision=true
-
-    !python model_inspect.py --runmode=saved_model_benchmark \
-      --saved_model_dir=/tmp/benchmark/efficientdet-d0_frozen.pb \
-      --model_name=efficientdet-d0  --input_image=testdata/img1.jpg  \
-      --output_image_dir=/tmp/
+    !python inspector.py --mode=benchmark --model_name=efficientdet-d0 \
+      --ckpt_path=efficientdet-d0 --hparams=mixed_precision=true
 
 On single Tesla V100 without using TensorRT, our end-to-end
 latency and throughput are:
@@ -162,32 +145,25 @@ latency and throughput are:
 
 ## 5. Inference for images.
 
-    # Step0: download model and testing image.
+    # Step1: download model and testing image.
     !export MODEL=efficientdet-d0
     !export CKPT_PATH=efficientdet-d0
     !wget https://storage.googleapis.com/cloud-tpu-checkpoints/efficientdet/coco/${MODEL}.tar.gz
     !wget https://user-images.githubusercontent.com/11736571/77320690-099af300-6d37-11ea-9d86-24f14dc2d540.png -O img.png
     !tar xf ${MODEL}.tar.gz
 
-    # Step 1: export saved model.
-    !python model_inspect.py --runmode=saved_model \
+    # Step2: inference image.
+    !python inspector.py --mode=infer \
       --model_name=efficientdet-d0 --ckpt_path=efficientdet-d0 \
       --hparams="image_size=1920x1280" \
-      --saved_model_dir=/tmp/saved_model
-
-    # Step 2: do inference with saved model.
-    !python model_inspect.py --runmode=saved_model_infer \
-      --model_name=efficientdet-d0  \
-      --saved_model_dir=/tmp/saved_model  \
       --input_image=img.png --output_image_dir=/tmp/
-    # you can visualize the output /tmp/0.jpg
 
 
 Alternatively, if you want to do inference using frozen graph instead of saved model, you can run
 
     # Step 0 and 1 is the same as before.
     # Step 2: do inference with frozen graph.
-    !python model_inspect.py --runmode=saved_model_infer \
+    !python inspector.py --mode=infer \
       --model_name=efficientdet-d0  \
       --saved_model_dir=/tmp/saved_model/efficientdet-d0_frozen.pb  \
       --input_image=img.png --output_image_dir=/tmp/
@@ -195,8 +171,8 @@ Alternatively, if you want to do inference using frozen graph instead of saved m
 Lastly, if you only have one image and just want to run a quick test, you can also run the following command (it is slow because it needs to construct the graph from scratch):
 
     # Run inference for a single image.
-    !python model_inspect.py --runmode=infer --model_name=$MODEL \
-      --hparams="image_size=1920x1280"  --max_boxes_to_draw=100   --min_score_thresh=0.4 \
+    !python inspector.py --mode=infer --model_name=$MODEL \
+      --hparams="image_size=1920x1280" \
       --ckpt_path=$CKPT_PATH --input_image=img.png --output_image_dir=/tmp
     # you can visualize the output /tmp/0.jpg
 
@@ -210,23 +186,18 @@ Here is an example of EfficientDet-D0 visualization: more on [tutorial](tutorial
 
 You can run inference for a video and show the results online:
 
-    # step 0: download the example video.
+    # step 1: download the example video.
     !wget https://storage.googleapis.com/cloud-tpu-checkpoints/efficientdet/data/video480p.mov -O input.mov
 
-    # step 1: export saved model.
-    !python model_inspect.py --runmode=saved_model \
+    # step 2: export saved model.
+    !python inspector.py --mode=video \
       --model_name=efficientdet-d0 --ckpt_path=efficientdet-d0 \
-      --saved_model_dir=/tmp/savedmodel --hparams=voc_config.yaml
-
-    # step 2: inference video using saved_model_video.
-    !python model_inspect.py --runmode=saved_model_video \
-      --model_name=efficientdet-d0 \
-      --saved_model_dir=/tmp/savedmodel --input_video=input.mov
+      --hparams=voc_config.yaml --input_video=input.mov
 
     # alternative step 2: inference video and save the result.
-    !python model_inspect.py --runmode=saved_model_video \
+    !python inspector.py --mode=video --hparams=voc_config.yaml \
       --model_name=efficientdet-d0   \
-      --saved_model_dir=/tmp/savedmodel --input_video=input.mov  \
+      --input_video=input.mov  \
       --output_video=output.mov
 
 ## 7. Eval on COCO 2017 val or test-dev.
@@ -297,14 +268,14 @@ Create a config file for the PASCAL VOC dataset called voc_config.yaml and put t
 
 Finetune needs to use --ckpt rather than --backbone_ckpt.
 
-    !python main.py --mode=train_and_eval \
+    !python train.py
         --training_file_pattern=tfrecord/pascal*.tfrecord \
         --validation_file_pattern=tfrecord/pascal*.tfrecord \
         --model_name=efficientdet-d0 \
         --model_dir=/tmp/efficientdet-d0-finetune  \
         --ckpt=efficientdet-d0  \
-        --train_batch_size=64 \
-        --eval_batch_size=64 --eval_samples=1024 \
+        --batch_size=64 \
+        --eval_samples=1024 \
         --num_examples_per_epoch=5717 --num_epochs=50  \
         --hparams=voc_config.yaml
 
@@ -313,7 +284,7 @@ If you want to continue to train the model, simply re-run the above command beca
 If you want to do inference for custom data, you can run
 
     # Setting hparams-flag is needed sometimes.
-    !python model_inspect.py --runmode=infer \
+    !python inspector.py --mode=infer \
       --model_name=efficientdet-d0   --ckpt_path=efficientdet-d0 \
       --hparams=voc_config.yaml  \
       --input_image=img.png --output_image_dir=/tmp/
@@ -335,14 +306,14 @@ Download efficientdet coco checkpoint.
 
 Finetune needs to use --ckpt rather than --backbone_ckpt.
 
-    python main.py --mode=train \
+    python train.py \
         --training_file_pattern=tfrecord/pascal*.tfrecord \
         --validation_file_pattern=tfrecord/pascal*.tfrecord \
         --model_name=efficientdet-d0 \
         --model_dir=/tmp/efficientdet-d0-finetune  \
         --ckpt=efficientdet-d0  \
-        --train_batch_size=64 \
-        --eval_batch_size=64 --eval_samples=1024 \
+        --batch_size=64 \
+        --eval_samples=1024 \
         --num_examples_per_epoch=5717 --num_epochs=50  \
         --hparams=voc_config.yaml
         --strategy=gpus
@@ -350,7 +321,7 @@ Finetune needs to use --ckpt rather than --backbone_ckpt.
 If you want to do inference for custom data, you can run
 
     # Setting hparams-flag is needed sometimes.
-    !python model_inspect.py --runmode=infer \
+    !python inspector.py --mode=infer \
       --model_name=efficientdet-d0   --ckpt_path=efficientdet-d0 \
       --hparams=voc_config.yaml  \
       --input_image=img.png --output_image_dir=/tmp/
@@ -368,7 +339,7 @@ To train this model on Cloud TPU, you will need:
 Then train the model:
 
     !export PYTHONPATH="$PYTHONPATH:/path/to/models"
-    !python main.py --tpu=TPU_NAME --training_file_pattern=DATA_DIR/*.tfrecord --model_dir=MODEL_DIR --strategy=tpu
+    !python train.py --tpu=TPU_NAME --training_file_pattern=DATA_DIR/*.tfrecord --model_dir=MODEL_DIR --strategy=tpu
 
     # TPU_NAME is the name of the TPU node, the same name that appears when you run gcloud compute tpus list, or ctpu ls.
     # MODEL_DIR is a GCS location (a URL starting with gs:// where both the GCE VM and the associated Cloud TPU have write access.

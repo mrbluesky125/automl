@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Inference related utilities."""
+r"""Inference related utilities."""
 import copy
 import functools
 import os
@@ -22,6 +22,9 @@ from absl import logging
 import numpy as np
 from PIL import Image
 import tensorflow.compat.v1 as tf
+
+import six
+import json
 
 import dataloader
 import det_model_fn
@@ -449,6 +452,41 @@ class ServingDriver(object):
             'prediction': detections,
         }
         return self.signitures
+
+    def to_json(self, prediction, **kwargs):
+        """predictions to json"""
+
+        boxes = prediction[:, 1:5]
+        classes = prediction[:, 6].astype(int)
+        scores = prediction[:, 5]
+
+        label_map = label_util.get_label_map(self.label_map or 'coco')
+        category_index = {k: {'id': k, 'name': label_map[k]} for k in label_map}
+
+        min_score_thresh = kwargs.get('min_score_thresh', 0.01)
+        # first check for scores higher than given threshold
+        scores_idx = scores > min_score_thresh
+
+        scores_abv_thres = scores[scores_idx]
+        boxes_abv_thres = boxes[scores_idx]
+        classes_abv_thres = classes[scores_idx]
+
+        class_names_abv_thresh = []
+        for class_abv in classes_abv_thres:
+            if class_abv in six.viewkeys(category_index):
+                class_name = category_index[class_abv]['name']
+                class_names_abv_thresh.append(class_name)
+            else:
+                class_names_abv_thresh.append('UNKNOWN')
+
+        json_obj = {}
+        json_obj['boxes'] = boxes_abv_thres.tolist()
+        json_obj['classes_idx'] = classes_abv_thres.tolist()
+        json_obj['classes_name'] = class_names_abv_thresh
+        json_obj['scores'] = scores_abv_thres.tolist()
+
+        json_str = json.dumps(json_obj, indent=4)
+        return json_str
 
     def visualize(self, image, prediction, **kwargs):
         """Visualize prediction on image."""
