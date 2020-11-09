@@ -91,10 +91,11 @@ def main(_):
             frame = cv2.imdecode(np.asarray(bytearray(payload), dtype=np.uint8), cv2.IMREAD_COLOR)
             raw_frames = [np.array(frame)]
             detections_bs = driver.serve_images(raw_frames)
-            new_frame = driver.visualize(raw_frames[0], detections_bs[0], min_score_thresh=FLAGS.min_score_thresh, max_boxes_to_draw=FLAGS.max_boxes_to_draw, line_thickness=FLAGS.line_thickness )
             client.notify("inferenceResult", driver.to_json(detections_bs[0]))
-            res, boxedFrame = cv2.imencode('.jpg', new_frame)
-            client.binaryNotify("inferenceResult", boxedFrame.tobytes())
+            
+            #new_frame = driver.visualize(raw_frames[0], detections_bs[0], min_score_thresh=FLAGS.min_score_thresh, max_boxes_to_draw=FLAGS.max_boxes_to_draw, line_thickness=FLAGS.line_thickness )
+            #res, boxedFrame = cv2.imencode('.jpg', new_frame)
+            #client.binaryNotify("inferenceResult", boxedFrame.tobytes())
 
     client.on_binaryNotification = on_binaryNotification_handler
     client.start()
