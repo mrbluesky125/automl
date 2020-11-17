@@ -106,7 +106,6 @@ def main(_):
     client.stop()
 
 if __name__ == '__main__':
-    os.environ["BROKER_IP"] = "141.19.87.230"
     
     logging.set_verbosity(logging.WARNING)
     tf.enable_v2_tensorshape()
