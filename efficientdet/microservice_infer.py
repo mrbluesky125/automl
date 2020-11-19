@@ -25,7 +25,7 @@ import utils
 from tensorflow.python.client import timeline  # pylint: disable=g-direct-tensorflow-import
 import microserviceclient
 
-flags.DEFINE_string('kinect4a_id', '000093201412', 'KinectID.')
+flags.DEFINE_string('service_name', 'k4aservice_000093201412', 'Service name.')
 flags.DEFINE_string('model_name', 'efficientdet-d0', 'Model.')
 flags.DEFINE_string('logdir', '/tmp/deff/', 'log directory.')
 flags.DEFINE_string('trace_filename', None, 'Trace file name.')
@@ -75,7 +75,7 @@ def main(_):
     model_config.nms_configs.method = FLAGS.nms_method
     model_config.nms_configs.max_output_size = FLAGS.max_boxes_to_draw
 
-    client = microserviceclient.MicroserviceClient("efficientdetservice_" + FLAGS.kinect4a_id)
+    client = microserviceclient.MicroserviceClient("efficientdetservice_" + FLAGS.service_name)
     driver = inference.ServingDriver(
         FLAGS.model_name,
         FLAGS.ckpt_path,
